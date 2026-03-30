@@ -5,3 +5,6 @@ services:
       - "3100:3100"
     volumes:
       - paperclip-data:/paperclip
+      
+volumes:
+  paperclip-data:
