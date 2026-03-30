@@ -36,24 +36,38 @@ RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" &
 
 FROM base AS production
 WORKDIR /app
+
+RUN npm install --global --omit=dev \
+    @anthropic-ai/claude-code@latest \
+    @openai/codex@latest \
+    opencode-ai \
+    && mkdir -p /paperclip \
+    && chown node:node /paperclip
+
 COPY --chown=node:node --from=build /app /app
-RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai \
-  && mkdir -p /paperclip \
-  && chown node:node /paperclip
 
 ENV NODE_ENV=production \
-  HOME=/paperclip \
-  HOST=0.0.0.0 \
-  PORT=3100 \
-  SERVE_UI=true \
-  PAPERCLIP_HOME=/paperclip \
-  PAPERCLIP_INSTANCE_ID=default \
-  PAPERCLIP_CONFIG=/paperclip/instances/default/config.json \
-  PAPERCLIP_DEPLOYMENT_MODE=authenticated \
-  PAPERCLIP_DEPLOYMENT_EXPOSURE=private
+    HOME=/paperclip \
+    HOST=0.0.0.0 \
+    PORT=3100 \
+    SERVE_UI=true \
+    PAPERCLIP_HOME=/paperclip \
+    PAPERCLIP_INSTANCE_ID=default \
+    PAPERCLIP_CONFIG=/paperclip/instances/default/config.json \
+    PAPERCLIP_DEPLOYMENT_MODE=authenticated \
+    PAPERCLIP_DEPLOYMENT_EXPOSURE=private
+
+RUN echo '#!/bin/bash\n\
+if [ -n "$OPENROUTER_API_KEY" ]; then\n\
+  mkdir -p $HOME/.opencode\n\
+  echo "{\\"providers\\": {\\"openrouter\\": {\\"apiKey\\": \\"$OPENROUTER_API_KEY\\"}}, \\"defaultProvider\\": \\"openrouter\\"}" > $HOME/.opencode/config.json\n\
+  echo "OpenCode configured with OpenRouter key."\n\
+fi\n\
+exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
 
 VOLUME ["/paperclip"]
 EXPOSE 3100
 
 USER node
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
